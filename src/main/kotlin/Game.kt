@@ -1,18 +1,11 @@
+import kotlin.properties.Delegates.observable
+
 typealias Score = Pair<Int, Int>
 
-abstract class Subject {
-    private val observers: MutableList<Observer> = mutableListOf()
-    fun attach(observer: Observer) = observers.add(observer)
-    fun detach(observer: Observer) = observers.remove(observer)
-    protected fun onUpdate() = observers.forEach { it.update() }
-}
-
-class Game : Subject() {
-    var score: Score = 0 to 0
-        private set(value) {
-            field = value
-            onUpdate()
-        }
+class Game(private val observers: List<(Score) -> Unit>) {
+    var score: Score by observable(0 to 0) { _, _, new ->
+        observers.forEach { update -> update(new) }
+    }
 
     fun onFirstTeamScores() {
         score = score.copy(first = score.first + 1)
@@ -24,9 +17,9 @@ class Game : Subject() {
 }
 
 fun main() {
-    val game = Game()
-    val announcer1 = ScoreAnnouncer(game)
-    val announcer2 = LeadingTeamAnnouncer(game)
+    val announcer1 = ScoreAnnouncer()
+    val announcer2 = LeadingTeamAnnouncer()
+    val game = Game(listOf(announcer1::update, announcer2::update))
 
     game.onFirstTeamScores()
     game.onSecondTeamScores()
