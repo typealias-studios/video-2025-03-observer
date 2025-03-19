@@ -1,27 +1,37 @@
-import kotlin.properties.Delegates.observable
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.getAndUpdate
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 
 typealias Score = Pair<Int, Int>
 
-class Game(private val observers: List<(Score) -> Unit>) {
-    var score: Score by observable(0 to 0) { _, _, new ->
-        observers.forEach { update -> update(new) }
+class Game {
+    private val _score = MutableStateFlow(0 to 0)
+    val score = _score.asStateFlow()
+
+    suspend fun onFirstTeamScores() {
+        _score.getAndUpdate { it.copy(first = it.first + 1) }
+        yield()
     }
 
-    fun onFirstTeamScores() {
-        score = score.copy(first = score.first + 1)
-    }
-
-    fun onSecondTeamScores() {
-        score = score.copy(second = score.second + 1)
+    suspend fun onSecondTeamScores() {
+        _score.getAndUpdate { it.copy(second = it.second + 1) }
+        yield()
     }
 }
 
-fun main() {
-    val announcer1 = ScoreAnnouncer()
-    val announcer2 = LeadingTeamAnnouncer()
-    val game = Game(listOf(announcer1::update, announcer2::update))
+fun main() = runBlocking<Unit> {
+    val game = Game()
 
-    game.onFirstTeamScores()
-    game.onSecondTeamScores()
-    game.onSecondTeamScores()
+    launch { game.score.collect(::announceScore) }
+    launch { game.score.collect(::announceLeadingTeam) }
+
+    launch {
+        game.onFirstTeamScores()
+        game.onSecondTeamScores()
+
+        game.onSecondTeamScores()
+    }
 }
